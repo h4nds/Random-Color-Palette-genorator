@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +18,8 @@
   "dependencies": {
     "chalk": "^5.4.1",
     "inquirer": "^12.8.2"
+  },
+  "bin": {
+    "rwcolor-random": "dist/cli/index.js"
   }
 }

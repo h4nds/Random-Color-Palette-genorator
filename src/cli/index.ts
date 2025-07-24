@@ -1,3 +1,5 @@
+#!/usr/bin/env node 
+
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions } from '../shared/colorPalette';
@@ -26,22 +28,41 @@ async function main() {
     }
   ]);
 
-  console.log(chalk.bold(`\nPalette for ${baseColor} (${style}):`));
-  console.log(chalk.italic(paletteStyleDescriptions[style as PaletteStyle]));
-  const palette = generateRelatedPalette(baseColor, style as PaletteStyle);
-  palette.forEach((color, i) => {
-    console.log(chalk.bgHex(color).black(` ${color} `));
-  });
-
-  // Show all styles preview
-  console.log(chalk.bold('\nPreview of all palette styles:'));
-  for (const s of styles) {
-    const pal = generateRelatedPalette(baseColor, s);
-    console.log(chalk.underline(`${s.charAt(0).toUpperCase() + s.slice(1)}: ${paletteStyleDescriptions[s]}`));
-    pal.forEach((color) => {
-      process.stdout.write(chalk.bgHex(color).black(` ${color} `) + ' ');
+  let accepted = false;
+  while (!accepted) {
+    // Highlight the selected style in the main palette output
+    const styleLabel = chalk.bgYellow.black.bold(` ${style.toUpperCase()} `);
+    console.log(chalk.bold(`\nPalette for ${baseColor} (`) + styleLabel + chalk.bold('):'));
+    console.log(chalk.italic(paletteStyleDescriptions[style as PaletteStyle]));
+    const palette = generateRelatedPalette(baseColor, style as PaletteStyle);
+    palette.forEach((color, i) => {
+      console.log(chalk.bgHex(color).black(` ${color} `));
     });
-    process.stdout.write('\n\n');
+
+    // Show all styles preview, highlighting the selected style
+    console.log(chalk.bold('\nPreview of all palette styles:'));
+    for (const s of styles) {
+      const isSelected = s === style;
+      const label = isSelected
+        ? chalk.bgYellow.black.bold(`${s.charAt(0).toUpperCase() + s.slice(1)}`)
+        : chalk.underline(`${s.charAt(0).toUpperCase() + s.slice(1)}`);
+      console.log(label + ': ' + paletteStyleDescriptions[s]);
+      const pal = generateRelatedPalette(baseColor, s);
+      pal.forEach((color) => {
+        process.stdout.write(chalk.bgHex(color).black(` ${color} `) + ' ');
+      });
+      process.stdout.write('\n\n');
+    }
+
+    const { reroll } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'reroll',
+        message: 'Would you like to re-roll (regenerate) the palette?',
+        default: false
+      }
+    ]);
+    accepted = !reroll;
   }
 }
 
