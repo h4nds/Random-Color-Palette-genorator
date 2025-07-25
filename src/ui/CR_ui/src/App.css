@@ -14,7 +14,7 @@ body {
   width: 100%;
   margin: 0 auto;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 19px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
   padding: 32px 24px 40px 24px;
   display: flex;
@@ -78,7 +78,7 @@ button {
 }
 
 button:hover {
-  background: #217dbb;
+  background: #521b5e;
 }
 
 .palette-row {
