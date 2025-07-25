@@ -18,7 +18,8 @@
   "dependencies": {
     "chalk": "^5.4.1",
     "clipboardy": "^4.0.0",
-    "inquirer": "^12.8.2"
+    "inquirer": "^12.8.2",
+    "vite": "^7.0.6"
   },
   "bin": {
     "rwcolor-random": "dist/cli/index.js"
