@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "chalk": "^5.4.1",
+    "clipboardy": "^4.0.0",
     "inquirer": "^12.8.2"
   },
   "bin": {

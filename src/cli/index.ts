@@ -3,6 +3,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions } from '../shared/colorPalette';
+import clipboardy from 'clipboardy';
 
 const styles: PaletteStyle[] = ['analogous', 'monochromatic', 'complementary', 'triadic', 'tetradic'];
 
@@ -63,6 +64,19 @@ async function main() {
       }
     ]);
     accepted = !reroll;
+  }
+
+  const {copyColor} = await inquirer.prompt([
+    {
+      type:'input',
+      name:'copyColor',
+      message:'Enter a color hex to copy to clipboard (or just leave blank to skip)',
+      validate:(input: string) => !input || /^#([0-9a-fA-F]{6})$/.test(input) || 'Enter a valid hex or leave blank.'
+    }
+  ]);
+  if (copyColor) {
+    clipboardy.writeSync(copyColor);
+    console.log(chalk.green('Copied ${copyColor} to clipboard!'))
   }
 }
 
