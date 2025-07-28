@@ -1,5 +1,5 @@
 body {
-  background: #150118f5;
+  background: linear-gradient(135deg, #000000 0%, #c2c2c2 100%);
   font-family: 'Segoe UI', Arial, sans-serif;
   margin: 0;
   padding: 0;
@@ -10,13 +10,16 @@ body {
 }
 
 .app-container {
-  max-width: 480px;
+  max-width: 600px;
   width: 100%;
   margin: 0 auto;
-  background: #fff;
-  border-radius: 19px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  padding: 32px 24px 40px 24px;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 20px;
+  border: 1px solid rgba(172, 7, 187, 0.18);
+  padding: 48px 32px 56px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -24,7 +27,7 @@ body {
 
 h1 {
   text-align: center;
-  color: #222;
+  color: #ffffff;
   margin-bottom: 32px;
 }
 
@@ -34,7 +37,7 @@ label {
   align-items: center;
   margin-bottom: 18px;
   font-weight: 500;
-  color: #333;
+  color: #d1d1d1;
 }
 
 input[type="color"] {
@@ -65,9 +68,9 @@ select {
 }
 
 button {
-  background: #3498db;
+  background: rgba(52, 152, 219, 0.7);
   color: #fff;
-  border: none;
+  border: 1px solid rgba(255, 248, 248, 0.877);
   border-radius: 6px;
   padding: 10px 24px;
   font-size: 1rem;
@@ -78,7 +81,7 @@ button {
 }
 
 button:hover {
-  background: #521b5e;
+  background: rgba(82, 27, 94, 0.7);
 }
 
 .palette-row {
@@ -99,18 +102,21 @@ button:hover {
   font-size: 1rem;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-  border: 2px solid #fff;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
   transition: transform 0.1s, box-shadow 0.1s;
   user-select: none;
+  background: rgba(255,255,255,0.18);
 }
 
 .palette-color:hover {
   transform: scale(1.07);
   box-shadow: 0 4px 16px rgba(0,0,0,0.13);
-  border: 2px solid #3498db;
+  border: 2px solid #2f3438;
 }
 
 .copied {
-  outline: 2px solid #27ae60;
+  outline: 2px solid #00ff6a;
   outline-offset: 2px;
 }
