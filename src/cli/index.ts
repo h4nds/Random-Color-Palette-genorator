@@ -2,9 +2,24 @@
 
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions, parseColor, exportPalette, ExportFormat, randomHexColor } from '../shared/colorPalette';
+import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions, parseColor, exportPalette, ExportFormat, randomHexColor, generateAccessibilityReport, simulateColorBlindness, ColorBlindnessType } from '../shared/colorPalette';
 import clipboardy from 'clipboardy';
 import { Command } from 'commander';
+import { 
+  ASCII_ART, 
+  STATUS, 
+  printHeader, 
+  printColorPalette, 
+  printAccessibilityReport, 
+  printColorblindSimulation, 
+  printExportFormat, 
+  printSuccess, 
+  printError, 
+  printInfo, 
+  printCopySuccess, 
+  printExportSuccess,
+  createColorSwatch 
+} from './ascii';
 
 const styles: PaletteStyle[] = ['analogous', 'monochromatic', 'complementary', 'triadic', 'tetradic'];
 
@@ -19,36 +34,48 @@ program
   .option('--random', 'use a random base color')
   .option('--no-preview', 'skip showing all style previews')
   .option('--copy-first', 'automatically copy the first color to clipboard')
-  .option('-e, --export <format>', 'export format (json, css, scss, tailwind, text)')
-  .option('-o, --output <file>', 'output file path for export');
+  .option('-e, --export <format>', 'export format (json, css, scss, tailwind, text, accessibility, colorblind)')
+  .option('-o, --output <file>', 'output file path for export')
+  .option('--accessibility', 'show accessibility information for the palette')
+  .option('--colorblind <type>', 'simulate color blindness (protanopia, deuteranopia, tritanopia, achromatopsia)');
 
 // Helper function to display palette
-function showPalette(baseColor: string, style: PaletteStyle, showPreview: boolean = true) {
-  // Highlight the selected style in the main palette output
-  const styleLabel = chalk.bgYellow.black.bold(` ${style.toUpperCase()} `);
-  console.log(chalk.bold(`\nPalette for ${baseColor} (`) + styleLabel + chalk.bold('):'));
-  console.log(chalk.italic(paletteStyleDescriptions[style]));
-  
+function showPalette(baseColor: string, style: PaletteStyle, showPreview: boolean = true, showAccessibility: boolean = false, colorblindType?: ColorBlindnessType) {
   const palette = generateRelatedPalette(baseColor, style);
-  palette.forEach((color, i) => {
-    console.log(chalk.bgHex(color).black(` ${color} `));
-  });
+  
+  // Show main palette with enhanced styling
+  printColorPalette(palette, `${baseColor} (${style.toUpperCase()})`, paletteStyleDescriptions[style]);
+
+  // Show colorblind simulation if requested
+  if (colorblindType) {
+    const simulatedPalette = palette.map(color => simulateColorBlindness(color, colorblindType));
+    printColorblindSimulation(palette, simulatedPalette, colorblindType);
+  }
+
+  // Show accessibility information if requested
+  if (showAccessibility) {
+    const report = generateAccessibilityReport(palette);
+    printAccessibilityReport(report);
+  }
 
   if (showPreview) {
-    // Show all styles preview, highlighting the selected style
-    console.log(chalk.bold('\nPreview of all palette styles:'));
+    // Show all styles preview with enhanced styling
+    printHeader('Preview of All Palette Styles');
     for (const s of styles) {
       const isSelected = s === style;
       const label = isSelected
-        ? chalk.bgYellow.black.bold(`${s.charAt(0).toUpperCase() + s.slice(1)}`)
-        : chalk.underline(`${s.charAt(0).toUpperCase() + s.slice(1)}`);
-      console.log(label + ': ' + paletteStyleDescriptions[s]);
+        ? chalk.bgYellow.black.bold(` ${s.toUpperCase()} `)
+        : chalk.underline(s.charAt(0).toUpperCase() + s.slice(1));
+      console.log(chalk.white.bold(`\n${label}: ${chalk.gray.italic(paletteStyleDescriptions[s])}`));
+      
       const pal = generateRelatedPalette(baseColor, s);
       pal.forEach((color) => {
-        process.stdout.write(chalk.bgHex(color).black(` ${color} `) + ' ');
+        const swatch = createColorSwatch(color);
+        process.stdout.write(`  ${swatch}  `);
       });
-      process.stdout.write('\n\n');
+      process.stdout.write('\n');
     }
+    console.log(chalk.cyan(ASCII_ART.separator));
   }
 }
 
@@ -58,7 +85,7 @@ async function handleCopying(baseColor: string, style: PaletteStyle, copyFirst: 
     const palette = generateRelatedPalette(baseColor, style);
     const firstColor = palette[0];
     clipboardy.writeSync(firstColor);
-    console.log(chalk.green(`Copied ${firstColor} to clipboard!`));
+    printCopySuccess(firstColor);
   } else {
     const { copyColor } = await inquirer.prompt([
       {
@@ -70,7 +97,7 @@ async function handleCopying(baseColor: string, style: PaletteStyle, copyFirst: 
     ]);
     if (copyColor) {
       clipboardy.writeSync(copyColor);
-      console.log(chalk.green(`Copied ${copyColor} to clipboard!`));
+      printCopySuccess(copyColor);
     }
   }
 }
@@ -80,19 +107,26 @@ async function main() {
   program.parse();
   const options = program.opts();
   
+  // Show welcome message if no arguments provided (interactive mode)
+  if (!options.base && !options.style && !options.random && !options.export) {
+    console.log(chalk.cyan.bold(ASCII_ART.logo));
+    printInfo('Welcome to the Random Color Palette Generator!');
+    console.log(chalk.gray(ASCII_ART.separator));
+  }
+  
   // Step 1: Get base color (from args or prompt)
   let baseColor: string;
   if (options.random) {
     // Generate random base color
     baseColor = randomHexColor();
-    console.log(chalk.cyan(`Generated random base color: ${baseColor}`));
+    printInfo(`Generated random base color: ${createColorSwatch(baseColor)}`);
   } else if (options.base) {
     // Parse the provided base color
     try {
       baseColor = parseColor(options.base);
-      console.log(chalk.cyan(`Using base color: ${baseColor}`));
+      printInfo(`Using base color: ${createColorSwatch(baseColor)}`);
     } catch (error) {
-      console.error(chalk.red(`Error: ${error instanceof Error ? error.message : 'Invalid color format'}`));
+      printError(`Invalid color format: ${error instanceof Error ? error.message : 'Unknown error'}`);
       process.exit(1);
     }
   } else {
@@ -120,11 +154,11 @@ async function main() {
   if (options.style) {
     // Validate the provided style
     if (!styles.includes(options.style as PaletteStyle)) {
-      console.error(chalk.red(`Error: Invalid style. Choose from: ${styles.join(', ')}`));
+      printError(`Invalid style. Choose from: ${styles.join(', ')}`);
       process.exit(1);
     }
     style = options.style as PaletteStyle;
-    console.log(chalk.cyan(`Using style: ${style}`));
+    printInfo(`Using style: ${chalk.white.bold(style)}`);
   } else {
     // Interactive prompt
     const result = await inquirer.prompt([
@@ -144,11 +178,22 @@ async function main() {
   // Step 3: Determine if we should use interactive mode for rerolling
   const isInteractiveMode = !options.base || !options.style;
   
+  // Validate colorblind type if provided
+  let colorblindType: ColorBlindnessType | undefined;
+  if (options.colorblind) {
+    const validTypes: ColorBlindnessType[] = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
+    if (!validTypes.includes(options.colorblind as ColorBlindnessType)) {
+      printError(`Invalid colorblind type. Choose from: ${validTypes.join(', ')}`);
+      process.exit(1);
+    }
+    colorblindType = options.colorblind as ColorBlindnessType;
+  }
+
   if (isInteractiveMode) {
     // Interactive mode - existing reroll logic
     let accepted = false;
     while (!accepted) {
-      showPalette(baseColor, style, options.preview !== false);
+      showPalette(baseColor, style, options.preview !== false, options.accessibility, colorblindType);
       
       const { reroll } = await inquirer.prompt([
         {
@@ -162,7 +207,7 @@ async function main() {
     }
   } else {
     // Non-interactive mode - show once
-    showPalette(baseColor, style, options.preview !== false);
+    showPalette(baseColor, style, options.preview !== false, options.accessibility, colorblindType);
   }
 
   // Step 4: Handle copying
@@ -180,14 +225,13 @@ async function main() {
         // Write to file
         const fs = require('fs');
         fs.writeFileSync(options.output, exported);
-        console.log(chalk.green(`Palette exported to ${options.output}`));
+        printExportSuccess(options.output);
       } else {
         // Output to console
-        console.log(chalk.bold('\nExported Palette:'));
-        console.log(exported);
+        printExportFormat(exportFormat, exported);
       }
     } catch (error) {
-      console.error(chalk.red(`Export error: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      printError(`Export error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       process.exit(1);
     }
   }

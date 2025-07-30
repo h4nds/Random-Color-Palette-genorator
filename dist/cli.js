@@ -3454,7 +3454,7 @@ var require_commander = __commonJS({
 
 // src/cli/index.ts
 var import_inquirer = __toESM(require("inquirer"));
-var import_chalk = __toESM(require("chalk"));
+var import_chalk2 = __toESM(require("chalk"));
 
 // src/shared/colorPalette.ts
 function randomHexColor() {
@@ -3518,6 +3518,15 @@ function parseColor(color) {
 function rgbToHex({ r, g, b }) {
   const toHex = (n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+function hexToRGB(hex) {
+  const cleanHex = hex.replace("#", "");
+  const num = parseInt(cleanHex, 16);
+  return {
+    r: num >> 16 & 255,
+    g: num >> 8 & 255,
+    b: num & 255
+  };
 }
 function hexToHSL(hex) {
   let c = hex.replace("#", "");
@@ -3600,6 +3609,105 @@ var paletteStyleDescriptions = {
   triadic: "Three colors evenly spaced on the color wheel; vibrant and balanced.",
   tetradic: "Four colors forming a rectangle on the color wheel; rich and diverse."
 };
+var WCAG_THRESHOLDS = {
+  AA: { normal: 4.5, large: 3 },
+  AAA: { normal: 7, large: 4.5 }
+};
+function getRelativeLuminance(hex) {
+  const rgb = hexToRGB(hex);
+  const [r, g, b] = [rgb.r / 255, rgb.g / 255, rgb.b / 255].map((c) => {
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function getContrastRatio(color1, color2) {
+  const l1 = getRelativeLuminance(color1);
+  const l2 = getRelativeLuminance(color2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+function getWCAGStatus(color1, color2) {
+  const ratio = getContrastRatio(color1, color2);
+  return {
+    ratio: Math.round(ratio * 100) / 100,
+    aa: ratio >= WCAG_THRESHOLDS.AA.normal,
+    aaa: ratio >= WCAG_THRESHOLDS.AAA.normal,
+    aaLarge: ratio >= WCAG_THRESHOLDS.AA.large,
+    aaaLarge: ratio >= WCAG_THRESHOLDS.AAA.large
+  };
+}
+var COLORBLIND_MATRICES = {
+  protanopia: [
+    [0.567, 0.433, 0],
+    [0.558, 0.442, 0],
+    [0, 0.242, 0.758]
+  ],
+  deuteranopia: [
+    [0.625, 0.375, 0],
+    [0.7, 0.3, 0],
+    [0, 0.3, 0.7]
+  ],
+  tritanopia: [
+    [0.95, 0.05, 0],
+    [0, 0.433, 0.567],
+    [0, 0.475, 0.525]
+  ]
+};
+function simulateColorBlindness(hex, type) {
+  if (type === "achromatopsia") {
+    const rgb2 = hexToRGB(hex);
+    const gray = Math.round(0.299 * rgb2.r + 0.587 * rgb2.g + 0.114 * rgb2.b);
+    return rgbToHex({ r: gray, g: gray, b: gray });
+  }
+  const rgb = hexToRGB(hex);
+  const matrix = COLORBLIND_MATRICES[type];
+  const newR = Math.round(rgb.r * matrix[0][0] + rgb.g * matrix[0][1] + rgb.b * matrix[0][2]);
+  const newG = Math.round(rgb.r * matrix[1][0] + rgb.g * matrix[1][1] + rgb.b * matrix[1][2]);
+  const newB = Math.round(rgb.r * matrix[2][0] + rgb.g * matrix[2][1] + rgb.b * matrix[2][2]);
+  return rgbToHex({
+    r: Math.max(0, Math.min(255, newR)),
+    g: Math.max(0, Math.min(255, newG)),
+    b: Math.max(0, Math.min(255, newB))
+  });
+}
+function generateAccessibilityReport(palette) {
+  const colorPairs = [];
+  let totalContrast = 0;
+  let aaCompliant = 0;
+  let aaaCompliant = 0;
+  for (let i = 0; i < palette.length; i++) {
+    for (let j = i + 1; j < palette.length; j++) {
+      const color1 = palette[i];
+      const color2 = palette[j];
+      const wcag = getWCAGStatus(color1, color2);
+      colorPairs.push({
+        color1,
+        color2,
+        contrast: wcag.ratio,
+        wcag: {
+          aa: wcag.aa,
+          aaa: wcag.aaa,
+          aaLarge: wcag.aaLarge,
+          aaaLarge: wcag.aaaLarge
+        }
+      });
+      totalContrast += wcag.ratio;
+      if (wcag.aa) aaCompliant++;
+      if (wcag.aaa) aaaCompliant++;
+    }
+  }
+  const totalPairs = colorPairs.length;
+  return {
+    colorPairs,
+    summary: {
+      totalPairs,
+      aaCompliant,
+      aaaCompliant,
+      averageContrast: totalPairs > 0 ? Math.round(totalContrast / totalPairs * 100) / 100 : 0
+    }
+  };
+}
 function exportPalette(palette, format, baseColor, style) {
   switch (format) {
     case "json":
@@ -3627,6 +3735,36 @@ function exportPalette(palette, format, baseColor, style) {
 }`;
     case "text":
       return palette.join("\n");
+    case "accessibility":
+      const report = generateAccessibilityReport(palette);
+      return `Accessibility Report for Palette
+${"=".repeat(50)}
+
+Summary:
+- Total color pairs: ${report.summary.totalPairs}
+- WCAG AA compliant: ${report.summary.aaCompliant}/${report.summary.totalPairs} (${Math.round(report.summary.aaCompliant / report.summary.totalPairs * 100)}%)
+- WCAG AAA compliant: ${report.summary.aaaCompliant}/${report.summary.totalPairs} (${Math.round(report.summary.aaaCompliant / report.summary.totalPairs * 100)}%)
+- Average contrast ratio: ${report.summary.averageContrast}:1
+
+Color Pair Analysis:
+${report.colorPairs.map(
+        (pair) => `${pair.color1} \u2194 ${pair.color2}
+  Contrast: ${pair.contrast}:1
+  WCAG AA: ${pair.wcag.aa ? "\u2705" : "\u274C"} | AAA: ${pair.wcag.aaa ? "\u2705" : "\u274C"}
+  Large Text AA: ${pair.wcag.aaLarge ? "\u2705" : "\u274C"} | AAA: ${pair.wcag.aaaLarge ? "\u2705" : "\u274C"}`
+      ).join("\n\n")}`;
+    case "colorblind":
+      const types = ["protanopia", "deuteranopia", "tritanopia", "achromatopsia"];
+      return `Color Blindness Simulation
+${"=".repeat(50)}
+
+Original Palette: ${palette.join(", ")}
+
+Simulations:
+${types.map(
+        (type) => `${type.charAt(0).toUpperCase() + type.slice(1)}:
+  ${palette.map((color) => simulateColorBlindness(color, type)).join(", ")}`
+      ).join("\n\n")}`;
     default:
       throw new Error(`Unsupported export format: ${format}`);
   }
@@ -3652,31 +3790,195 @@ var {
   Help
 } = import_index.default;
 
+// src/cli/ascii.ts
+var import_chalk = __toESM(require("chalk"));
+var ASCII_ART = {
+  logo: `
+\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
+\u2551                                                              \u2551
+\u2551    \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557    \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2557     \u2551
+\u2551    \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551    \u2588\u2588\u2551\u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557    \u2551
+\u2551    \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2551 \u2588\u2557 \u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2551     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551    \u2551
+\u2551    \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551\u2588\u2588\u2588\u2557\u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551    \u2551
+\u2551    \u2588\u2588\u2551  \u2588\u2588\u2551\u255A\u2588\u2588\u2588\u2554\u2588\u2588\u2588\u2554\u255D\u255A\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2551  \u2588\u2588\u2551\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551    \u2551
+\u2551    \u255A\u2550\u255D  \u255A\u2550\u255D \u255A\u2550\u2550\u255D\u255A\u2550\u2550\u255D  \u255A\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u255D  \u255A\u2550\u255D\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D\u255A\u2550\u255D  \u255A\u2550\u255D    \u2551
+\u2551                                                              \u2551
+\u2551              \u{1F3A8} Random Color Palette Generator \u{1F3A8}           \u2551
+\u2551                                                              \u2551
+\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D
+`,
+  palette: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                    \u{1F3A8} COLOR PALETTE \u{1F3A8}                      \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  accessibility: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                  \u267F ACCESSIBILITY REPORT \u267F                   \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  colorblind: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                \u{1F308} COLOR BLINDNESS SIMULATION \u{1F308}              \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  export: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                    \u{1F4E4} EXPORT FORMAT \u{1F4E4}                      \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  success: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                        \u2705 SUCCESS \u2705                         \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  error: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                        \u274C ERROR \u274C                           \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  info: `
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502                        \u2139\uFE0F  INFO \u2139\uFE0F                           \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`,
+  separator: "\u2500".repeat(70),
+  thickSeparator: "\u2550".repeat(70),
+  thinSeparator: "\u2500".repeat(50)
+};
+function createColorSwatch(color, label) {
+  const colorBlock = import_chalk.default.bgHex(color).black("  ");
+  const hexCode = import_chalk.default.hex(color)(color);
+  const displayLabel = label ? ` ${label}` : "";
+  return `${colorBlock} ${hexCode}${displayLabel}`;
+}
+var STATUS = {
+  success: import_chalk.default.green("\u2705"),
+  error: import_chalk.default.red("\u274C"),
+  warning: import_chalk.default.yellow("\u26A0\uFE0F"),
+  info: import_chalk.default.blue("\u2139\uFE0F"),
+  loading: import_chalk.default.cyan("\u23F3"),
+  done: import_chalk.default.green("\u2728"),
+  copy: import_chalk.default.magenta("\u{1F4CB}"),
+  export: import_chalk.default.blue("\u{1F4E4}"),
+  accessibility: import_chalk.default.cyan("\u267F"),
+  colorblind: import_chalk.default.yellow("\u{1F308}")
+};
+function printHeader(title, subtitle) {
+  console.log(import_chalk.default.cyan.bold(ASCII_ART.separator));
+  console.log(import_chalk.default.cyan.bold(`  ${title}`));
+  if (subtitle) {
+    console.log(import_chalk.default.cyan.italic(`  ${subtitle}`));
+  }
+  console.log(import_chalk.default.cyan.bold(ASCII_ART.separator));
+}
+function printError(message) {
+  console.log(import_chalk.default.red.bold(`
+${STATUS.error} ${message}`));
+}
+function printInfo(message) {
+  console.log(import_chalk.default.blue.bold(`
+${STATUS.info} ${message}`));
+}
+function printColorPalette(colors, title, description) {
+  console.log(import_chalk.default.cyan.bold(ASCII_ART.palette));
+  console.log(import_chalk.default.white.bold(`  ${title}`));
+  if (description) {
+    console.log(import_chalk.default.gray.italic(`  ${description}`));
+  }
+  console.log(import_chalk.default.cyan(ASCII_ART.separator));
+  colors.forEach((color, index) => {
+    const swatch = createColorSwatch(color, `Color ${index + 1}`);
+    console.log(`  ${swatch}`);
+  });
+  console.log(import_chalk.default.cyan(ASCII_ART.separator));
+}
+function printAccessibilityReport(report) {
+  console.log(import_chalk.default.cyan.bold(ASCII_ART.accessibility));
+  console.log(import_chalk.default.yellow.bold("\n\u{1F4CA} SUMMARY"));
+  console.log(import_chalk.default.gray(ASCII_ART.thinSeparator));
+  console.log(import_chalk.default.cyan(`\u2022 Total color pairs: ${import_chalk.default.white.bold(report.summary.totalPairs)}`));
+  console.log(import_chalk.default.cyan(`\u2022 WCAG AA compliant: ${import_chalk.default.white.bold(report.summary.aaCompliant)}/${import_chalk.default.white.bold(report.summary.totalPairs)} (${import_chalk.default.white.bold(Math.round(report.summary.aaCompliant / report.summary.totalPairs * 100))}%)`));
+  console.log(import_chalk.default.cyan(`\u2022 WCAG AAA compliant: ${import_chalk.default.white.bold(report.summary.aaaCompliant)}/${import_chalk.default.white.bold(report.summary.totalPairs)} (${import_chalk.default.white.bold(Math.round(report.summary.aaaCompliant / report.summary.totalPairs * 100))}%)`));
+  console.log(import_chalk.default.cyan(`\u2022 Average contrast ratio: ${import_chalk.default.white.bold(report.summary.averageContrast)}:1`));
+  const sortedPairs = report.colorPairs.sort((a, b) => b.contrast - a.contrast);
+  console.log(import_chalk.default.yellow.bold("\n\u{1F3C6} TOP 3 CONTRAST RATIOS"));
+  console.log(import_chalk.default.gray(ASCII_ART.thinSeparator));
+  sortedPairs.slice(0, 3).forEach((pair, i) => {
+    const status = pair.wcag.aa ? STATUS.success : STATUS.error;
+    const swatch1 = createColorSwatch(pair.color1);
+    const swatch2 = createColorSwatch(pair.color2);
+    console.log(`  ${i + 1}. ${swatch1} \u2194 ${swatch2}`);
+    console.log(`     Contrast: ${import_chalk.default.white.bold(pair.contrast)}:1 ${status} AA`);
+  });
+}
+function printColorblindSimulation(originalColors, simulatedColors, type) {
+  console.log(import_chalk.default.cyan.bold(ASCII_ART.colorblind));
+  console.log(import_chalk.default.yellow.bold(`
+\u{1F308} ${type.toUpperCase()} SIMULATION`));
+  console.log(import_chalk.default.gray(ASCII_ART.thinSeparator));
+  console.log(import_chalk.default.cyan.bold("\n\u{1F441}\uFE0F  ORIGINAL COLORS:"));
+  originalColors.forEach((color, i) => {
+    const swatch = createColorSwatch(color, `Color ${i + 1}`);
+    console.log(`  ${swatch}`);
+  });
+  console.log(import_chalk.default.cyan.bold("\n\u{1F441}\uFE0F  SIMULATED COLORS:"));
+  simulatedColors.forEach((color, i) => {
+    const swatch = createColorSwatch(color, `Color ${i + 1}`);
+    console.log(`  ${swatch}`);
+  });
+}
+function printExportFormat(format, content) {
+  console.log(import_chalk.default.cyan.bold(ASCII_ART.export));
+  console.log(import_chalk.default.yellow.bold(`
+\u{1F4E4} EXPORT FORMAT: ${import_chalk.default.white.bold(format.toUpperCase())}`));
+  console.log(import_chalk.default.gray(ASCII_ART.thinSeparator));
+  console.log(content);
+}
+function printCopySuccess(color) {
+  console.log(import_chalk.default.green.bold(`
+${STATUS.copy} Copied ${import_chalk.default.hex(color)(color)} to clipboard!`));
+}
+function printExportSuccess(filePath) {
+  if (filePath) {
+    console.log(import_chalk.default.green.bold(`
+${STATUS.export} Palette exported to ${import_chalk.default.white.bold(filePath)}`));
+  } else {
+    console.log(import_chalk.default.green.bold(`
+${STATUS.export} Palette exported successfully!`));
+  }
+}
+
 // src/cli/index.ts
 var styles = ["analogous", "monochromatic", "complementary", "triadic", "tetradic"];
 var program2 = new Command();
-program2.name("rwcolor-random").version("1.0.0").description("Generate beautiful color palettes from a base color").option("-b, --base <color>", "base color (hex, rgb, hsl, or color name)").option("-s, --style <style>", `palette style (${styles.join(", ")})`).option("--random", "use a random base color").option("--no-preview", "skip showing all style previews").option("--copy-first", "automatically copy the first color to clipboard").option("-e, --export <format>", "export format (json, css, scss, tailwind, text)").option("-o, --output <file>", "output file path for export");
-function showPalette(baseColor, style, showPreview = true) {
-  const styleLabel = import_chalk.default.bgYellow.black.bold(` ${style.toUpperCase()} `);
-  console.log(import_chalk.default.bold(`
-Palette for ${baseColor} (`) + styleLabel + import_chalk.default.bold("):"));
-  console.log(import_chalk.default.italic(paletteStyleDescriptions[style]));
+program2.name("rwcolor-random").version("1.0.0").description("Generate beautiful color palettes from a base color").option("-b, --base <color>", "base color (hex, rgb, hsl, or color name)").option("-s, --style <style>", `palette style (${styles.join(", ")})`).option("--random", "use a random base color").option("--no-preview", "skip showing all style previews").option("--copy-first", "automatically copy the first color to clipboard").option("-e, --export <format>", "export format (json, css, scss, tailwind, text, accessibility, colorblind)").option("-o, --output <file>", "output file path for export").option("--accessibility", "show accessibility information for the palette").option("--colorblind <type>", "simulate color blindness (protanopia, deuteranopia, tritanopia, achromatopsia)");
+function showPalette(baseColor, style, showPreview = true, showAccessibility = false, colorblindType) {
   const palette = generateRelatedPalette(baseColor, style);
-  palette.forEach((color, i) => {
-    console.log(import_chalk.default.bgHex(color).black(` ${color} `));
-  });
+  printColorPalette(palette, `${baseColor} (${style.toUpperCase()})`, paletteStyleDescriptions[style]);
+  if (colorblindType) {
+    const simulatedPalette = palette.map((color) => simulateColorBlindness(color, colorblindType));
+    printColorblindSimulation(palette, simulatedPalette, colorblindType);
+  }
+  if (showAccessibility) {
+    const report = generateAccessibilityReport(palette);
+    printAccessibilityReport(report);
+  }
   if (showPreview) {
-    console.log(import_chalk.default.bold("\nPreview of all palette styles:"));
+    printHeader("Preview of All Palette Styles");
     for (const s of styles) {
       const isSelected = s === style;
-      const label = isSelected ? import_chalk.default.bgYellow.black.bold(`${s.charAt(0).toUpperCase() + s.slice(1)}`) : import_chalk.default.underline(`${s.charAt(0).toUpperCase() + s.slice(1)}`);
-      console.log(label + ": " + paletteStyleDescriptions[s]);
+      const label = isSelected ? import_chalk2.default.bgYellow.black.bold(` ${s.toUpperCase()} `) : import_chalk2.default.underline(s.charAt(0).toUpperCase() + s.slice(1));
+      console.log(import_chalk2.default.white.bold(`
+${label}: ${import_chalk2.default.gray.italic(paletteStyleDescriptions[s])}`));
       const pal = generateRelatedPalette(baseColor, s);
       pal.forEach((color) => {
-        process.stdout.write(import_chalk.default.bgHex(color).black(` ${color} `) + " ");
+        const swatch = createColorSwatch(color);
+        process.stdout.write(`  ${swatch}  `);
       });
-      process.stdout.write("\n\n");
+      process.stdout.write("\n");
     }
+    console.log(import_chalk2.default.cyan(ASCII_ART.separator));
   }
 }
 async function handleCopying(baseColor, style, copyFirst = false) {
@@ -3684,7 +3986,7 @@ async function handleCopying(baseColor, style, copyFirst = false) {
     const palette = generateRelatedPalette(baseColor, style);
     const firstColor = palette[0];
     import_clipboardy.default.writeSync(firstColor);
-    console.log(import_chalk.default.green(`Copied ${firstColor} to clipboard!`));
+    printCopySuccess(firstColor);
   } else {
     const { copyColor } = await import_inquirer.default.prompt([
       {
@@ -3696,23 +3998,28 @@ async function handleCopying(baseColor, style, copyFirst = false) {
     ]);
     if (copyColor) {
       import_clipboardy.default.writeSync(copyColor);
-      console.log(import_chalk.default.green(`Copied ${copyColor} to clipboard!`));
+      printCopySuccess(copyColor);
     }
   }
 }
 async function main() {
   program2.parse();
   const options = program2.opts();
+  if (!options.base && !options.style && !options.random && !options.export) {
+    console.log(import_chalk2.default.cyan.bold(ASCII_ART.logo));
+    printInfo("Welcome to the Random Color Palette Generator!");
+    console.log(import_chalk2.default.gray(ASCII_ART.separator));
+  }
   let baseColor;
   if (options.random) {
     baseColor = randomHexColor();
-    console.log(import_chalk.default.cyan(`Generated random base color: ${baseColor}`));
+    printInfo(`Generated random base color: ${createColorSwatch(baseColor)}`);
   } else if (options.base) {
     try {
       baseColor = parseColor(options.base);
-      console.log(import_chalk.default.cyan(`Using base color: ${baseColor}`));
+      printInfo(`Using base color: ${createColorSwatch(baseColor)}`);
     } catch (error) {
-      console.error(import_chalk.default.red(`Error: ${error instanceof Error ? error.message : "Invalid color format"}`));
+      printError(`Invalid color format: ${error instanceof Error ? error.message : "Unknown error"}`);
       process.exit(1);
     }
   } else {
@@ -3736,11 +4043,11 @@ async function main() {
   let style;
   if (options.style) {
     if (!styles.includes(options.style)) {
-      console.error(import_chalk.default.red(`Error: Invalid style. Choose from: ${styles.join(", ")}`));
+      printError(`Invalid style. Choose from: ${styles.join(", ")}`);
       process.exit(1);
     }
     style = options.style;
-    console.log(import_chalk.default.cyan(`Using style: ${style}`));
+    printInfo(`Using style: ${import_chalk2.default.white.bold(style)}`);
   } else {
     const result = await import_inquirer.default.prompt([
       {
@@ -3756,10 +4063,19 @@ async function main() {
     style = result.style;
   }
   const isInteractiveMode = !options.base || !options.style;
+  let colorblindType;
+  if (options.colorblind) {
+    const validTypes = ["protanopia", "deuteranopia", "tritanopia", "achromatopsia"];
+    if (!validTypes.includes(options.colorblind)) {
+      printError(`Invalid colorblind type. Choose from: ${validTypes.join(", ")}`);
+      process.exit(1);
+    }
+    colorblindType = options.colorblind;
+  }
   if (isInteractiveMode) {
     let accepted = false;
     while (!accepted) {
-      showPalette(baseColor, style, options.preview !== false);
+      showPalette(baseColor, style, options.preview !== false, options.accessibility, colorblindType);
       const { reroll } = await import_inquirer.default.prompt([
         {
           type: "confirm",
@@ -3771,7 +4087,7 @@ async function main() {
       accepted = !reroll;
     }
   } else {
-    showPalette(baseColor, style, options.preview !== false);
+    showPalette(baseColor, style, options.preview !== false, options.accessibility, colorblindType);
   }
   await handleCopying(baseColor, style, options.copyFirst);
   if (options.export) {
@@ -3782,13 +4098,12 @@ async function main() {
       if (options.output) {
         const fs = require("fs");
         fs.writeFileSync(options.output, exported);
-        console.log(import_chalk.default.green(`Palette exported to ${options.output}`));
+        printExportSuccess(options.output);
       } else {
-        console.log(import_chalk.default.bold("\nExported Palette:"));
-        console.log(exported);
+        printExportFormat(exportFormat, exported);
       }
     } catch (error) {
-      console.error(import_chalk.default.red(`Export error: ${error instanceof Error ? error.message : "Unknown error"}`));
+      printError(`Export error: ${error instanceof Error ? error.message : "Unknown error"}`);
       process.exit(1);
     }
   }

@@ -162,7 +162,163 @@ export const paletteStyleDescriptions: Record<PaletteStyle, string> = {
 };
 
 // Export format types
-export type ExportFormat = 'json' | 'css' | 'scss' | 'tailwind' | 'text';
+export type ExportFormat = 'json' | 'css' | 'scss' | 'tailwind' | 'text' | 'accessibility' | 'colorblind';
+
+// Accessibility types and constants
+export type ColorBlindnessType = 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
+export type WCAGLevel = 'AA' | 'AAA';
+
+// WCAG contrast ratio thresholds
+const WCAG_THRESHOLDS = {
+  AA: { normal: 4.5, large: 3.0 },
+  AAA: { normal: 7.0, large: 4.5 }
+};
+
+// Calculate relative luminance of a color
+export function getRelativeLuminance(hex: string): number {
+  const rgb = hexToRGB(hex);
+  const [r, g, b] = [rgb.r / 255, rgb.g / 255, rgb.b / 255].map(c => {
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Calculate contrast ratio between two colors
+export function getContrastRatio(color1: string, color2: string): number {
+  const l1 = getRelativeLuminance(color1);
+  const l2 = getRelativeLuminance(color2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Check if contrast ratio meets WCAG standards
+export function meetsWCAGStandards(color1: string, color2: string, level: WCAGLevel = 'AA', size: 'normal' | 'large' = 'normal'): boolean {
+  const ratio = getContrastRatio(color1, color2);
+  return ratio >= WCAG_THRESHOLDS[level][size];
+}
+
+// Get WCAG compliance status
+export function getWCAGStatus(color1: string, color2: string): {
+  ratio: number;
+  aa: boolean;
+  aaa: boolean;
+  aaLarge: boolean;
+  aaaLarge: boolean;
+} {
+  const ratio = getContrastRatio(color1, color2);
+  return {
+    ratio: Math.round(ratio * 100) / 100,
+    aa: ratio >= WCAG_THRESHOLDS.AA.normal,
+    aaa: ratio >= WCAG_THRESHOLDS.AAA.normal,
+    aaLarge: ratio >= WCAG_THRESHOLDS.AA.large,
+    aaaLarge: ratio >= WCAG_THRESHOLDS.AAA.large
+  };
+}
+
+// Color blindness simulation matrices
+const COLORBLIND_MATRICES = {
+  protanopia: [
+    [0.567, 0.433, 0],
+    [0.558, 0.442, 0],
+    [0, 0.242, 0.758]
+  ],
+  deuteranopia: [
+    [0.625, 0.375, 0],
+    [0.7, 0.3, 0],
+    [0, 0.3, 0.7]
+  ],
+  tritanopia: [
+    [0.95, 0.05, 0],
+    [0, 0.433, 0.567],
+    [0, 0.475, 0.525]
+  ]
+};
+
+// Simulate color blindness
+export function simulateColorBlindness(hex: string, type: ColorBlindnessType): string {
+  if (type === 'achromatopsia') {
+    // Convert to grayscale
+    const rgb = hexToRGB(hex);
+    const gray = Math.round(0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
+    return rgbToHex({ r: gray, g: gray, b: gray });
+  }
+
+  const rgb = hexToRGB(hex);
+  const matrix = COLORBLIND_MATRICES[type];
+  
+  const newR = Math.round(rgb.r * matrix[0][0] + rgb.g * matrix[0][1] + rgb.b * matrix[0][2]);
+  const newG = Math.round(rgb.r * matrix[1][0] + rgb.g * matrix[1][1] + rgb.b * matrix[1][2]);
+  const newB = Math.round(rgb.r * matrix[2][0] + rgb.g * matrix[2][1] + rgb.b * matrix[2][2]);
+  
+  return rgbToHex({
+    r: Math.max(0, Math.min(255, newR)),
+    g: Math.max(0, Math.min(255, newG)),
+    b: Math.max(0, Math.min(255, newB))
+  });
+}
+
+// Generate accessibility report for a palette
+export function generateAccessibilityReport(palette: string[]): {
+  colorPairs: Array<{
+    color1: string;
+    color2: string;
+    contrast: number;
+    wcag: {
+      aa: boolean;
+      aaa: boolean;
+      aaLarge: boolean;
+      aaaLarge: boolean;
+    };
+  }>;
+  summary: {
+    totalPairs: number;
+    aaCompliant: number;
+    aaaCompliant: number;
+    averageContrast: number;
+  };
+} {
+  const colorPairs = [];
+  let totalContrast = 0;
+  let aaCompliant = 0;
+  let aaaCompliant = 0;
+
+  for (let i = 0; i < palette.length; i++) {
+    for (let j = i + 1; j < palette.length; j++) {
+      const color1 = palette[i];
+      const color2 = palette[j];
+      const wcag = getWCAGStatus(color1, color2);
+      
+      colorPairs.push({
+        color1,
+        color2,
+        contrast: wcag.ratio,
+        wcag: {
+          aa: wcag.aa,
+          aaa: wcag.aaa,
+          aaLarge: wcag.aaLarge,
+          aaaLarge: wcag.aaaLarge
+        }
+      });
+
+      totalContrast += wcag.ratio;
+      if (wcag.aa) aaCompliant++;
+      if (wcag.aaa) aaaCompliant++;
+    }
+  }
+
+  const totalPairs = colorPairs.length;
+  
+  return {
+    colorPairs,
+    summary: {
+      totalPairs,
+      aaCompliant,
+      aaaCompliant,
+      averageContrast: totalPairs > 0 ? Math.round((totalContrast / totalPairs) * 100) / 100 : 0
+    }
+  };
+}
 
 // Export palette in different formats
 export function exportPalette(palette: string[], format: ExportFormat, baseColor?: string, style?: PaletteStyle): string {
@@ -196,6 +352,38 @@ export function exportPalette(palette: string[], format: ExportFormat, baseColor
     
     case 'text':
       return palette.join('\n');
+    
+    case 'accessibility':
+      const report = generateAccessibilityReport(palette);
+      return `Accessibility Report for Palette
+${'='.repeat(50)}
+
+Summary:
+- Total color pairs: ${report.summary.totalPairs}
+- WCAG AA compliant: ${report.summary.aaCompliant}/${report.summary.totalPairs} (${Math.round(report.summary.aaCompliant/report.summary.totalPairs*100)}%)
+- WCAG AAA compliant: ${report.summary.aaaCompliant}/${report.summary.totalPairs} (${Math.round(report.summary.aaaCompliant/report.summary.totalPairs*100)}%)
+- Average contrast ratio: ${report.summary.averageContrast}:1
+
+Color Pair Analysis:
+${report.colorPairs.map(pair => 
+  `${pair.color1} ↔ ${pair.color2}
+  Contrast: ${pair.contrast}:1
+  WCAG AA: ${pair.wcag.aa ? '✅' : '❌'} | AAA: ${pair.wcag.aaa ? '✅' : '❌'}
+  Large Text AA: ${pair.wcag.aaLarge ? '✅' : '❌'} | AAA: ${pair.wcag.aaaLarge ? '✅' : '❌'}`
+).join('\n\n')}`;
+    
+    case 'colorblind':
+      const types: ColorBlindnessType[] = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
+      return `Color Blindness Simulation
+${'='.repeat(50)}
+
+Original Palette: ${palette.join(', ')}
+
+Simulations:
+${types.map(type => 
+  `${type.charAt(0).toUpperCase() + type.slice(1)}:
+  ${palette.map(color => simulateColorBlindness(color, type)).join(', ')}`
+).join('\n\n')}`;
     
     default:
       throw new Error(`Unsupported export format: ${format}`);

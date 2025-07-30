@@ -19,8 +19,11 @@ A modern, full-stack color palette generator with both a user-friendly CLI and a
 - **Command-line arguments** for automation and scripting
 - **Multiple color input formats** (hex, RGB, HSL, color names)
 - **Random color generation** for inspiration
-- **Export formats** (JSON, CSS, SCSS, Tailwind, text)
+- **Export formats** (JSON, CSS, SCSS, Tailwind, text, accessibility, colorblind)
 - **File output** for integration with projects
+- **Accessibility features** (WCAG compliance, contrast ratios, colorblind simulation)
+- **Beautiful ASCII art** and enhanced terminal styling
+- **Color swatches** with visual color blocks and hex codes
 - **Preview all palette styles** in the terminal
 - **Copy color hex codes** to clipboard
 - **Non-interactive mode** for quick palette generation
@@ -81,6 +84,11 @@ node dist/cli.js --base="#2ecc71" --style=monochromatic --no-preview --copy-firs
 node dist/cli.js --base="purple" --style=analogous --export=json
 node dist/cli.js --base="orange" --style=complementary --export=css --output=colors.css
 
+# Accessibility features
+node dist/cli.js --base="navy" --style=complementary --accessibility
+node dist/cli.js --base="red" --style=triadic --colorblind=protanopia
+node dist/cli.js --base="blue" --style=analogous --export=accessibility --output=report.txt
+
 # Show help
 node dist/cli.js --help
 
@@ -94,8 +102,10 @@ node dist/cli.js --version
 - `--random` - Use a random base color
 - `--no-preview` - Skip showing all style previews
 - `--copy-first` - Automatically copy the first color to clipboard
-- `-e, --export <format>` - Export format (json, css, scss, tailwind, text)
+- `-e, --export <format>` - Export format (json, css, scss, tailwind, text, accessibility, colorblind)
 - `-o, --output <file>` - Output file path for export
+- `--accessibility` - Show accessibility information for the palette
+- `--colorblind <type>` - Simulate color blindness (protanopia, deuteranopia, tritanopia, achromatopsia)
 - `-h, --help` - Display help information
 - `-V, --version` - Display version number
 
@@ -111,6 +121,8 @@ node dist/cli.js --version
 - **SCSS**: SCSS variables (`$color-1`, `$color-2`, etc.)
 - **Tailwind**: Tailwind CSS config format
 - **Text**: Simple hex color list
+- **Accessibility**: Detailed accessibility report with WCAG compliance
+- **Colorblind**: Color blindness simulations for all types
 
 #### Palette Styles
 - **Analogous**: Colors next to each other on the color wheel; harmonious and pleasing
@@ -118,6 +130,16 @@ node dist/cli.js --version
 - **Complementary**: Colors opposite each other on the color wheel; high contrast
 - **Triadic**: Three colors evenly spaced on the color wheel; vibrant and balanced
 - **Tetradic**: Four colors forming a rectangle on the color wheel; rich and diverse
+
+#### Accessibility Features
+- **WCAG Compliance**: Check if color combinations meet AA/AAA standards
+- **Contrast Ratios**: Calculate and display contrast ratios between all color pairs
+- **Color Blindness Simulation**: Simulate how colors appear to people with different types of color blindness
+  - **Protanopia**: Red-green color blindness (most common)
+  - **Deuteranopia**: Another form of red-green color blindness
+  - **Tritanopia**: Blue-yellow color blindness
+  - **Achromatopsia**: Complete color blindness (grayscale)
+- **Accessibility Reports**: Generate detailed reports for design teams and compliance
 
 #### Advanced Usage
 
@@ -133,6 +155,10 @@ echo "Generated palette: $PALETTE"
 # Export to file for project integration
 node dist/cli.js --base="teal" --style=analogous --export=css --output=src/styles/colors.css
 node dist/cli.js --base="coral" --style=triadic --export=tailwind --output=tailwind.config.js
+
+# Accessibility and compliance
+node dist/cli.js --base="navy" --style=complementary --accessibility --export=accessibility --output=accessibility-report.txt
+node dist/cli.js --base="red" --style=triadic --colorblind=protanopia --export=colorblind --output=colorblind-simulation.txt
 ```
 
 **Design Workflow:**
@@ -175,6 +201,7 @@ src/
 - **Frontend:** React, TypeScript, Vite
 - **Backend/Shared:** TypeScript color logic (reused in both CLI and UI)
 - **CLI:** Node.js, Inquirer, Chalk, Clipboardy, Commander.js
+- **Terminal Styling:** Custom ASCII art, enhanced color output, professional formatting
 
 ---
 
