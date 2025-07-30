@@ -3457,6 +3457,68 @@ var import_inquirer = __toESM(require("inquirer"));
 var import_chalk = __toESM(require("chalk"));
 
 // src/shared/colorPalette.ts
+function randomHexColor() {
+  const hex = Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0");
+  return `#${hex.toUpperCase()}`;
+}
+var colorNames = {
+  red: "#FF0000",
+  blue: "#0000FF",
+  green: "#008000",
+  yellow: "#FFFF00",
+  orange: "#FFA500",
+  purple: "#800080",
+  pink: "#FFC0CB",
+  brown: "#A52A2A",
+  black: "#000000",
+  white: "#FFFFFF",
+  gray: "#808080",
+  grey: "#808080",
+  cyan: "#00FFFF",
+  magenta: "#FF00FF",
+  lime: "#00FF00",
+  navy: "#000080",
+  olive: "#808000",
+  teal: "#008080",
+  maroon: "#800000",
+  silver: "#C0C0C0",
+  gold: "#FFD700",
+  indigo: "#4B0082",
+  violet: "#EE82EE",
+  coral: "#FF7F50",
+  turquoise: "#40E0D0",
+  salmon: "#FA8072",
+  khaki: "#F0E68C",
+  plum: "#DDA0DD",
+  lavender: "#E6E6FA",
+  beige: "#F5F5DC",
+  mint: "#98FF98",
+  peach: "#FFCBA4"
+};
+function parseColor(color) {
+  const input = color.toLowerCase().trim();
+  if (colorNames[input]) {
+    return colorNames[input];
+  }
+  if (/^#?[0-9a-fA-F]{6}$/.test(input)) {
+    return input.startsWith("#") ? input : `#${input}`;
+  }
+  const rgbMatch = input.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return rgbToHex({ r: parseInt(r), g: parseInt(g), b: parseInt(b) });
+  }
+  const hslMatch = input.match(/^hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)$/);
+  if (hslMatch) {
+    const [, h, s, l] = hslMatch;
+    return hslToHex({ h: parseInt(h), s: parseInt(s), l: parseInt(l) });
+  }
+  throw new Error(`Invalid color format: ${color}. Supported formats: hex (#RRGGBB), rgb(r,g,b), hsl(h,s%,l%), or color names.`);
+}
+function rgbToHex({ r, g, b }) {
+  const toHex = (n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
 function hexToHSL(hex) {
   let c = hex.replace("#", "");
   if (c.length === 3) c = c.split("").map((x) => x + x).join("");
@@ -3538,6 +3600,37 @@ var paletteStyleDescriptions = {
   triadic: "Three colors evenly spaced on the color wheel; vibrant and balanced.",
   tetradic: "Four colors forming a rectangle on the color wheel; rich and diverse."
 };
+function exportPalette(palette, format, baseColor, style) {
+  switch (format) {
+    case "json":
+      return JSON.stringify({
+        baseColor,
+        style,
+        colors: palette,
+        generatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      }, null, 2);
+    case "css":
+      return palette.map((color, i) => `--color-${i + 1}: ${color};`).join("\n");
+    case "scss":
+      return palette.map((color, i) => `$color-${i + 1}: ${color};`).join("\n");
+    case "tailwind":
+      return `module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        custom: {
+          ${palette.map((color, i) => `${i + 1}: '${color}'`).join(",\n          ")}
+        }
+      }
+    }
+  }
+}`;
+    case "text":
+      return palette.join("\n");
+    default:
+      throw new Error(`Unsupported export format: ${format}`);
+  }
+}
 
 // src/cli/index.ts
 var import_clipboardy = __toESM(require("clipboardy"));
@@ -3562,7 +3655,7 @@ var {
 // src/cli/index.ts
 var styles = ["analogous", "monochromatic", "complementary", "triadic", "tetradic"];
 var program2 = new Command();
-program2.name("rwcolor-random").version("1.0.0").description("Generate beautiful color palettes from a base color").option("-b, --base <color>", "base color in hex format (e.g., #3498db)").option("-s, --style <style>", `palette style (${styles.join(", ")})`).option("--no-preview", "skip showing all style previews").option("--copy-first", "automatically copy the first color to clipboard");
+program2.name("rwcolor-random").version("1.0.0").description("Generate beautiful color palettes from a base color").option("-b, --base <color>", "base color (hex, rgb, hsl, or color name)").option("-s, --style <style>", `palette style (${styles.join(", ")})`).option("--random", "use a random base color").option("--no-preview", "skip showing all style previews").option("--copy-first", "automatically copy the first color to clipboard").option("-e, --export <format>", "export format (json, css, scss, tailwind, text)").option("-o, --output <file>", "output file path for export");
 function showPalette(baseColor, style, showPreview = true) {
   const styleLabel = import_chalk.default.bgYellow.black.bold(` ${style.toUpperCase()} `);
   console.log(import_chalk.default.bold(`
@@ -3611,23 +3704,34 @@ async function main() {
   program2.parse();
   const options = program2.opts();
   let baseColor;
-  if (options.base) {
-    if (!/^#?[0-9a-fA-F]{6}$/.test(options.base)) {
-      console.error(import_chalk.default.red("Error: Invalid base color format. Use hex format like #3498db"));
+  if (options.random) {
+    baseColor = randomHexColor();
+    console.log(import_chalk.default.cyan(`Generated random base color: ${baseColor}`));
+  } else if (options.base) {
+    try {
+      baseColor = parseColor(options.base);
+      console.log(import_chalk.default.cyan(`Using base color: ${baseColor}`));
+    } catch (error) {
+      console.error(import_chalk.default.red(`Error: ${error instanceof Error ? error.message : "Invalid color format"}`));
       process.exit(1);
     }
-    baseColor = options.base.startsWith("#") ? options.base : `#${options.base}`;
-    console.log(import_chalk.default.cyan(`Using base color: ${baseColor}`));
   } else {
     const result = await import_inquirer.default.prompt([
       {
         type: "input",
         name: "baseColor",
-        message: "Enter a base color (hex, e.g. #3498db):",
-        validate: (input) => /^#?[0-9a-fA-F]{6}$/.test(input) || "Please enter a valid 6-digit hex color."
+        message: "Enter a base color (hex, rgb, hsl, or color name):",
+        validate: (input) => {
+          try {
+            parseColor(input);
+            return true;
+          } catch (error) {
+            return error instanceof Error ? error.message : "Invalid color format";
+          }
+        }
       }
     ]);
-    baseColor = result.baseColor;
+    baseColor = parseColor(result.baseColor);
   }
   let style;
   if (options.style) {
@@ -3670,5 +3774,23 @@ async function main() {
     showPalette(baseColor, style, options.preview !== false);
   }
   await handleCopying(baseColor, style, options.copyFirst);
+  if (options.export) {
+    const palette = generateRelatedPalette(baseColor, style);
+    const exportFormat = options.export;
+    try {
+      const exported = exportPalette(palette, exportFormat, baseColor, style);
+      if (options.output) {
+        const fs = require("fs");
+        fs.writeFileSync(options.output, exported);
+        console.log(import_chalk.default.green(`Palette exported to ${options.output}`));
+      } else {
+        console.log(import_chalk.default.bold("\nExported Palette:"));
+        console.log(exported);
+      }
+    } catch (error) {
+      console.error(import_chalk.default.red(`Export error: ${error instanceof Error ? error.message : "Unknown error"}`));
+      process.exit(1);
+    }
+  }
 }
 main();

@@ -2,7 +2,7 @@
 
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions } from '../shared/colorPalette';
+import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions, parseColor, exportPalette, ExportFormat, randomHexColor } from '../shared/colorPalette';
 import clipboardy from 'clipboardy';
 import { Command } from 'commander';
 
@@ -14,10 +14,13 @@ program
   .name('rwcolor-random')
   .version('1.0.0')
   .description('Generate beautiful color palettes from a base color')
-  .option('-b, --base <color>', 'base color in hex format (e.g., #3498db)')
+  .option('-b, --base <color>', 'base color (hex, rgb, hsl, or color name)')
   .option('-s, --style <style>', `palette style (${styles.join(', ')})`)
+  .option('--random', 'use a random base color')
   .option('--no-preview', 'skip showing all style previews')
-  .option('--copy-first', 'automatically copy the first color to clipboard');
+  .option('--copy-first', 'automatically copy the first color to clipboard')
+  .option('-e, --export <format>', 'export format (json, css, scss, tailwind, text)')
+  .option('-o, --output <file>', 'output file path for export');
 
 // Helper function to display palette
 function showPalette(baseColor: string, style: PaletteStyle, showPreview: boolean = true) {
@@ -79,25 +82,37 @@ async function main() {
   
   // Step 1: Get base color (from args or prompt)
   let baseColor: string;
-  if (options.base) {
-    // Validate the provided base color
-    if (!/^#?[0-9a-fA-F]{6}$/.test(options.base)) {
-      console.error(chalk.red('Error: Invalid base color format. Use hex format like #3498db'));
+  if (options.random) {
+    // Generate random base color
+    baseColor = randomHexColor();
+    console.log(chalk.cyan(`Generated random base color: ${baseColor}`));
+  } else if (options.base) {
+    // Parse the provided base color
+    try {
+      baseColor = parseColor(options.base);
+      console.log(chalk.cyan(`Using base color: ${baseColor}`));
+    } catch (error) {
+      console.error(chalk.red(`Error: ${error instanceof Error ? error.message : 'Invalid color format'}`));
       process.exit(1);
     }
-    baseColor = options.base.startsWith('#') ? options.base : `#${options.base}`;
-    console.log(chalk.cyan(`Using base color: ${baseColor}`));
   } else {
     // Interactive prompt
     const result = await inquirer.prompt([
       {
         type: 'input',
         name: 'baseColor',
-        message: 'Enter a base color (hex, e.g. #3498db):',
-        validate: (input: string) => /^#?[0-9a-fA-F]{6}$/.test(input) || 'Please enter a valid 6-digit hex color.'
+        message: 'Enter a base color (hex, rgb, hsl, or color name):',
+        validate: (input: string) => {
+          try {
+            parseColor(input);
+            return true;
+          } catch (error) {
+            return error instanceof Error ? error.message : 'Invalid color format';
+          }
+        }
       }
     ]);
-    baseColor = result.baseColor;
+    baseColor = parseColor(result.baseColor);
   }
 
   // Step 2: Get style (from args or prompt)  
@@ -152,6 +167,30 @@ async function main() {
 
   // Step 4: Handle copying
   await handleCopying(baseColor, style, options.copyFirst);
+  
+  // Step 5: Handle export
+  if (options.export) {
+    const palette = generateRelatedPalette(baseColor, style);
+    const exportFormat = options.export as ExportFormat;
+    
+    try {
+      const exported = exportPalette(palette, exportFormat, baseColor, style);
+      
+      if (options.output) {
+        // Write to file
+        const fs = require('fs');
+        fs.writeFileSync(options.output, exported);
+        console.log(chalk.green(`Palette exported to ${options.output}`));
+      } else {
+        // Output to console
+        console.log(chalk.bold('\nExported Palette:'));
+        console.log(exported);
+      }
+    } catch (error) {
+      console.error(chalk.red(`Export error: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      process.exit(1);
+    }
+  }
 }
 
 main(); 

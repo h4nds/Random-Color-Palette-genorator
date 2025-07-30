@@ -11,6 +11,67 @@ export function generatePalette(count: number): string[] {
 
 // Color conversion helpers
 export type HSL = { h: number; s: number; l: number };
+export type RGB = { r: number; g: number; b: number };
+
+// Color name to hex mapping
+const colorNames: Record<string, string> = {
+  red: '#FF0000', blue: '#0000FF', green: '#008000', yellow: '#FFFF00',
+  orange: '#FFA500', purple: '#800080', pink: '#FFC0CB', brown: '#A52A2A',
+  black: '#000000', white: '#FFFFFF', gray: '#808080', grey: '#808080',
+  cyan: '#00FFFF', magenta: '#FF00FF', lime: '#00FF00', navy: '#000080',
+  olive: '#808000', teal: '#008080', maroon: '#800000', silver: '#C0C0C0',
+  gold: '#FFD700', indigo: '#4B0082', violet: '#EE82EE', coral: '#FF7F50',
+  turquoise: '#40E0D0', salmon: '#FA8072', khaki: '#F0E68C', plum: '#DDA0DD',
+  lavender: '#E6E6FA', beige: '#F5F5DC', mint: '#98FF98', peach: '#FFCBA4'
+};
+
+// Parse different color formats to hex
+export function parseColor(color: string): string {
+  const input = color.toLowerCase().trim();
+  
+  // Check if it's a color name
+  if (colorNames[input]) {
+    return colorNames[input];
+  }
+  
+  // Check if it's already a hex color
+  if (/^#?[0-9a-fA-F]{6}$/.test(input)) {
+    return input.startsWith('#') ? input : `#${input}`;
+  }
+  
+  // Parse RGB format: rgb(r, g, b)
+  const rgbMatch = input.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return rgbToHex({ r: parseInt(r), g: parseInt(g), b: parseInt(b) });
+  }
+  
+  // Parse HSL format: hsl(h, s%, l%)
+  const hslMatch = input.match(/^hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)$/);
+  if (hslMatch) {
+    const [, h, s, l] = hslMatch;
+    return hslToHex({ h: parseInt(h), s: parseInt(s), l: parseInt(l) });
+  }
+  
+  throw new Error(`Invalid color format: ${color}. Supported formats: hex (#RRGGBB), rgb(r,g,b), hsl(h,s%,l%), or color names.`);
+}
+
+// Convert RGB to hex
+export function rgbToHex({ r, g, b }: RGB): string {
+  const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+// Convert hex to RGB
+export function hexToRGB(hex: string): RGB {
+  const cleanHex = hex.replace('#', '');
+  const num = parseInt(cleanHex, 16);
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
+}
 
 export function hexToHSL(hex: string): HSL {
   let c = hex.replace('#', '');
@@ -98,4 +159,45 @@ export const paletteStyleDescriptions: Record<PaletteStyle, string> = {
   complementary: 'Colors opposite each other on the color wheel; high contrast.',
   triadic: 'Three colors evenly spaced on the color wheel; vibrant and balanced.',
   tetradic: 'Four colors forming a rectangle on the color wheel; rich and diverse.'
-}; 
+};
+
+// Export format types
+export type ExportFormat = 'json' | 'css' | 'scss' | 'tailwind' | 'text';
+
+// Export palette in different formats
+export function exportPalette(palette: string[], format: ExportFormat, baseColor?: string, style?: PaletteStyle): string {
+  switch (format) {
+    case 'json':
+      return JSON.stringify({
+        baseColor,
+        style,
+        colors: palette,
+        generatedAt: new Date().toISOString()
+      }, null, 2);
+    
+    case 'css':
+      return palette.map((color, i) => `--color-${i + 1}: ${color};`).join('\n');
+    
+    case 'scss':
+      return palette.map((color, i) => `$color-${i + 1}: ${color};`).join('\n');
+    
+    case 'tailwind':
+      return `module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        custom: {
+          ${palette.map((color, i) => `${i + 1}: '${color}'`).join(',\n          ')}
+        }
+      }
+    }
+  }
+}`;
+    
+    case 'text':
+      return palette.join('\n');
+    
+    default:
+      throw new Error(`Unsupported export format: ${format}`);
+  }
+} 
