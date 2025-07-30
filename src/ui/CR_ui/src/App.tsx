@@ -23,7 +23,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <h1>Random Color Palette Generator</h1>
+      <h1>Color Palette Generator</h1>
       <label>
         Base Color:&nbsp;
         <input
