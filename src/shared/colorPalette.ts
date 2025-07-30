@@ -50,26 +50,42 @@ export type PaletteStyle = 'analogous' | 'monochromatic' | 'complementary' | 'tr
 
 export function generateRelatedPalette(baseHex: string, style: PaletteStyle): string[] {
   const base = hexToHSL(baseHex);
+  
+  // Helper function to add random jitter to a value within a specified range
+  function jitter(val: number, range: number): number {
+    return val + (Math.random() * 2 - 1) * range;
+  }
+  
   switch (style) {
     case 'analogous': {
-      // +/- 30, 60 degrees
-      return [0, -30, 30, -60, 60].map(dh => hslToHex({ ...base, h: (base.h + dh + 360) % 360 }));
+      // +/- 30, 60 degrees with small hue jitter for variation
+      return [0, -30, 30, -60, 60].map(dh => 
+        hslToHex({ ...base, h: (jitter(base.h + dh, 10) + 360) % 360 })
+      );
     }
     case 'monochromatic': {
-      // Vary lightness
-      return [-30, -15, 0, 15, 30].map(dl => hslToHex({ ...base, l: Math.max(0, Math.min(100, base.l + dl)) }));
+      // Vary lightness with jitter for subtle variations
+      return [-30, -15, 0, 15, 30].map(dl => 
+        hslToHex({ ...base, l: Math.max(0, Math.min(100, jitter(base.l + dl, 8))) })
+      );
     }
     case 'complementary': {
-      // Opposite hue, and near neighbors
-      return [0, 180, 150, 210, 30].map(dh => hslToHex({ ...base, h: (base.h + dh) % 360 }));
+      // Opposite hue, and near neighbors with moderate jitter
+      return [0, 180, 150, 210, 30].map(dh => 
+        hslToHex({ ...base, h: (jitter(base.h + dh, 12) + 360) % 360 })
+      );
     }
     case 'triadic': {
-      // 0, 120, 240, and near neighbors
-      return [0, 120, 240, 110, 250].map(dh => hslToHex({ ...base, h: (base.h + dh) % 360 }));
+      // 0, 120, 240, and near neighbors with balanced jitter
+      return [0, 120, 240, 110, 250].map(dh => 
+        hslToHex({ ...base, h: (jitter(base.h + dh, 10) + 360) % 360 })
+      );
     }
     case 'tetradic': {
-      // 0, 90, 180, 270, and base
-      return [0, 90, 180, 270, 45].map(dh => hslToHex({ ...base, h: (base.h + dh) % 360 }));
+      // 0, 90, 180, 270, and base with subtle jitter
+      return [0, 90, 180, 270, 45].map(dh => 
+        hslToHex({ ...base, h: (jitter(base.h + dh, 8) + 360) % 360 })
+      );
     }
     default:
       return [baseHex];
