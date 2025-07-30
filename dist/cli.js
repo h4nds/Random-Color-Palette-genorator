@@ -3771,7 +3771,7 @@ ${types.map(
 }
 
 // src/cli/index.ts
-var import_clipboardy = __toESM(require("clipboardy"));
+var import_child_process = require("child_process");
 
 // node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
@@ -3794,18 +3794,20 @@ var {
 var import_chalk = __toESM(require("chalk"));
 var ASCII_ART = {
   logo: `
-\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
-\u2551                                                              \u2551
-\u2551    \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557    \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2557     \u2551
-\u2551    \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551    \u2588\u2588\u2551\u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557    \u2551
-\u2551    \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2551 \u2588\u2557 \u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2551     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551    \u2551
-\u2551    \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551\u2588\u2588\u2588\u2557\u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551    \u2551
-\u2551    \u2588\u2588\u2551  \u2588\u2588\u2551\u255A\u2588\u2588\u2588\u2554\u2588\u2588\u2588\u2554\u255D\u255A\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2551  \u2588\u2588\u2551\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551    \u2551
-\u2551    \u255A\u2550\u255D  \u255A\u2550\u255D \u255A\u2550\u2550\u255D\u255A\u2550\u2550\u255D  \u255A\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u255D  \u255A\u2550\u255D\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D\u255A\u2550\u255D  \u255A\u2550\u255D    \u2551
-\u2551                                                              \u2551
-\u2551              \u{1F3A8} Random Color Palette Generator \u{1F3A8}           \u2551
-\u2551                                                              \u2551
-\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D
+                                     ,-.----.               
+,-.----.             .---.  ,----..  \\    /  \\    ,----..   
+\\    /  \\           /. ./| /   /   \\ |   :    \\  /   /   \\  
+;   :    \\      .--'.  ' ;|   :     :|   |  .\\ :|   :     : 
+|   | .\\ :     /__./ \\ : |.   |  ;. /.   :  |: |.   |  ;. / 
+.   : |: | .--'.  '   \\' ..   ; /--\` |   |   \\ :.   ; /--\`  
+|   |  \\ :/___/ \\ |    ' ';   | ;    |   : .   /;   | ;  __ 
+|   : .  /;   \\  \\;      :|   : |    ;   | |\`-' |   : |.' .'
+;   | |  \\ \\   ;  \`      |.   | '___ |   | ;    .   | '_.' :
+|   | ;\\  \\ .   \\    .\\  ;'   ; : .'|:   ' |    '   ; : \\  |
+:   ' | \\.'  \\   \\   ' \\ |'   | '/  ::   : :    '   | '/  .'
+:   : :-'     :   '  |--" |   :    / |   | :    |   :    /  
+|   |.'        \\   \\ ;     \\   \\ .'  \`---'.|     \\   \\ .'   
+\`---'           '---"       \`---\`      \`---\`      \`---\`     
 `,
   palette: `
 \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
@@ -3981,11 +3983,19 @@ ${label}: ${import_chalk2.default.gray.italic(paletteStyleDescriptions[s])}`));
     console.log(import_chalk2.default.cyan(ASCII_ART.separator));
   }
 }
+function copyToClipboard(text) {
+  try {
+    (0, import_child_process.execSync)(`echo "${text}" | clip`, { shell: "cmd" });
+  } catch (error) {
+    console.log(import_chalk2.default.yellow(`
+\u26A0\uFE0F  Could not copy to clipboard. Color: ${text}`));
+  }
+}
 async function handleCopying(baseColor, style, copyFirst = false) {
   if (copyFirst) {
     const palette = generateRelatedPalette(baseColor, style);
     const firstColor = palette[0];
-    import_clipboardy.default.writeSync(firstColor);
+    copyToClipboard(firstColor);
     printCopySuccess(firstColor);
   } else {
     const { copyColor } = await import_inquirer.default.prompt([
@@ -3997,7 +4007,7 @@ async function handleCopying(baseColor, style, copyFirst = false) {
       }
     ]);
     if (copyColor) {
-      import_clipboardy.default.writeSync(copyColor);
+      copyToClipboard(copyColor);
       printCopySuccess(copyColor);
     }
   }

@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --outfile=dist/cli.js --external:inquirer --external:chalk --external:clipboardy"
+    "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --outfile=dist/cli.js --external:inquirer --external:chalk"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "chalk": "^4.1.2",
-    "clipboardy": "^3.0.0",
+    "clipboard-cli": "^4.0.0",
     "commander": "^14.0.0",
     "inquirer": "^12.8.2",
     "vite": "^7.0.6"

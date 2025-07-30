@@ -3,7 +3,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { generateRelatedPalette, PaletteStyle, paletteStyleDescriptions, parseColor, exportPalette, ExportFormat, randomHexColor, generateAccessibilityReport, simulateColorBlindness, ColorBlindnessType } from '../shared/colorPalette';
-import clipboardy from 'clipboardy';
+import { execSync } from 'child_process';
 import { Command } from 'commander';
 import { 
   ASCII_ART, 
@@ -79,12 +79,23 @@ function showPalette(baseColor: string, style: PaletteStyle, showPreview: boolea
   }
 }
 
+// Helper function to copy to clipboard
+function copyToClipboard(text: string): void {
+  try {
+    // Try using the clipboard-cli command
+    execSync(`echo "${text}" | clip`, { shell: 'cmd' });
+  } catch (error) {
+    // Fallback: just log the color for manual copying
+    console.log(chalk.yellow(`\n⚠️  Could not copy to clipboard. Color: ${text}`));
+  }
+}
+
 // Helper function to handle copying
 async function handleCopying(baseColor: string, style: PaletteStyle, copyFirst: boolean = false) {
   if (copyFirst) {
     const palette = generateRelatedPalette(baseColor, style);
     const firstColor = palette[0];
-    clipboardy.writeSync(firstColor);
+    copyToClipboard(firstColor);
     printCopySuccess(firstColor);
   } else {
     const { copyColor } = await inquirer.prompt([
@@ -96,7 +107,7 @@ async function handleCopying(baseColor: string, style: PaletteStyle, copyFirst: 
       }
     ]);
     if (copyColor) {
-      clipboardy.writeSync(copyColor);
+      copyToClipboard(copyColor);
       printCopySuccess(copyColor);
     }
   }
